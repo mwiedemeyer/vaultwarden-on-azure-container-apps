@@ -1,0 +1,254 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.13.1.58284",
+      "templateHash": "1901914858291500371"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "germanywestcentral",
+      "metadata": {
+        "description": "The Azure region to install it"
+      }
+    },
+    "baseName": {
+      "type": "string",
+      "metadata": {
+        "description": "Base name for all resources"
+      }
+    },
+    "adminToken": {
+      "type": "secureString",
+      "metadata": {
+        "description": "The secret to access the /admin page of the Vaultwarden installation"
+      }
+    },
+    "sendgridSmtpPassword": {
+      "type": "secureString",
+      "metadata": {
+        "description": "If you are using sendgrid as a mail provider, set this to your API Key"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[format('law{0}', parameters('baseName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30,
+        "features": {
+          "enableLogAccessUsingOnlyResourcePermissions": true
+        },
+        "workspaceCapping": {
+          "dailyQuotaGb": 1
+        },
+        "publicNetworkAccessForIngestion": "Enabled",
+        "publicNetworkAccessForQuery": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-09-01",
+      "name": "[format('stgvaultwarden{0}', parameters('baseName'))]",
+      "location": "[parameters('location')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "properties": {
+        "allowBlobPublicAccess": false,
+        "minimumTlsVersion": "TLS1_2",
+        "allowSharedKeyAccess": true,
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices",
+      "apiVersion": "2022-09-01",
+      "name": "[format('{0}/{1}', format('stgvaultwarden{0}', parameters('baseName')), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "apiVersion": "2022-09-01",
+      "name": "[format('{0}/{1}/{2}', format('stgvaultwarden{0}', parameters('baseName')), 'default', 'vaultwarden')]",
+      "properties": {
+        "enabledProtocols": "SMB",
+        "shareQuota": 1024
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/fileServices', format('stgvaultwarden{0}', parameters('baseName')), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2022-06-01-preview",
+      "name": "[format('managedEnv-{0}-vaultwarden', parameters('baseName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Consumption"
+      },
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('law{0}', parameters('baseName'))), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('law{0}', parameters('baseName'))), '2022-10-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('law{0}', parameters('baseName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments/storages",
+      "apiVersion": "2022-06-01-preview",
+      "name": "[format('{0}/{1}', format('managedEnv-{0}-vaultwarden', parameters('baseName')), 'vaultwarden')]",
+      "properties": {
+        "azureFile": {
+          "accessMode": "ReadWrite",
+          "shareName": "vaultwarden",
+          "accountName": "[format('stgvaultwarden{0}', parameters('baseName'))]",
+          "accountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName'))), '2022-09-01').keys[0].value]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', format('stgvaultwarden{0}', parameters('baseName')), 'default', 'vaultwarden')]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('managedEnv-{0}-vaultwarden', parameters('baseName')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2022-06-01-preview",
+      "name": "[format('vaultwarden{0}', parameters('baseName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', format('managedEnv-{0}-vaultwarden', parameters('baseName')))]",
+        "configuration": {
+          "secrets": [
+            {
+              "name": "fileshare-connectionstring",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', format('stgvaultwarden{0}', parameters('baseName')), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName'))), '2022-09-01').keys[0].value)]"
+            },
+            {
+              "name": "admintoken",
+              "value": "[parameters('adminToken')]"
+            },
+            {
+              "name": "sendgridSmtpPassword",
+              "value": "[parameters('sendgridSmtpPassword')]"
+            }
+          ],
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": true,
+            "allowInsecure": false,
+            "targetPort": 80,
+            "transport": "auto",
+            "traffic": [
+              {
+                "weight": 100,
+                "latestRevision": true
+              }
+            ]
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "image": "docker.io/vaultwarden/server:latest",
+              "name": "vaultwarden",
+              "resources": {
+                "cpu": "0.25",
+                "memory": "0.5Gi"
+              },
+              "env": [
+                {
+                  "name": "AZURE_STORAGEFILE_CONNECTIONSTRING",
+                  "secretRef": "fileshare-connectionstring"
+                },
+                {
+                  "name": "SIGNUPS_ALLOWED",
+                  "value": "false"
+                },
+                {
+                  "name": "ADMIN_TOKEN",
+                  "secretRef": "admintoken"
+                },
+                {
+                  "name": "SMTP_HOST",
+                  "value": "smtp.sendgrid.net"
+                },
+                {
+                  "name": "SMTP_PORT",
+                  "value": "465"
+                },
+                {
+                  "name": "SMTP_SECURITY",
+                  "value": "force_tls"
+                },
+                {
+                  "name": "SMTP_USERNAME",
+                  "value": "apikey"
+                },
+                {
+                  "name": "SMTP_PASSWORD",
+                  "secretRef": "sendgridSmtpPassword"
+                },
+                {
+                  "name": "SMTP_AUTH_MECHANISM",
+                  "value": "Login"
+                },
+                {
+                  "name": "ENABLE_DB_WAL",
+                  "value": "true"
+                },
+                {
+                  "name": "SHOW_PASSWORD_HINT",
+                  "value": "false"
+                }
+              ],
+              "volumeMounts": [
+                {
+                  "volumeName": "vaultwarden",
+                  "mountPath": "/data"
+                }
+              ]
+            }
+          ],
+          "volumes": [
+            {
+              "name": "vaultwarden",
+              "storageName": "vaultwarden",
+              "storageType": "AzureFile"
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', format('stgvaultwarden{0}', parameters('baseName')), 'default', 'vaultwarden')]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('managedEnv-{0}-vaultwarden', parameters('baseName')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName')))]"
+      ]
+    }
+  ]
+}
