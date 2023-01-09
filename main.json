@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "1901914858291500371"
+      "templateHash": "9233386300371373978"
     }
   },
   "parameters": {
@@ -25,17 +25,46 @@
     "adminToken": {
       "type": "secureString",
       "metadata": {
-        "description": "The secret to access the /admin page of the Vaultwarden installation"
+        "description": "The password to access the /admin page of the Vaultwarden installation"
       }
     },
     "sendgridSmtpPassword": {
       "type": "secureString",
       "metadata": {
-        "description": "If you are using sendgrid as a mail provider, set this to your API Key"
+        "description": "If you are using sendgrid as a mail provider, set this to your API Key. If you are using another mail provider you have to customize the template."
       }
     }
   },
   "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2022-07-01",
+      "name": "[format('vnet{0}', parameters('baseName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "containerapps",
+            "properties": {
+              "addressPrefix": "",
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage",
+                  "locations": [
+                    "[parameters('location')]"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
     {
       "type": "Microsoft.OperationalInsights/workspaces",
       "apiVersion": "2022-10-01",
@@ -70,8 +99,21 @@
         "minimumTlsVersion": "TLS1_2",
         "allowSharedKeyAccess": true,
         "supportsHttpsTrafficOnly": true,
-        "accessTier": "Hot"
-      }
+        "accessTier": "Hot",
+        "networkAcls": {
+          "defaultAction": "Deny",
+          "bypass": "AzureServices",
+          "virtualNetworkRules": [
+            {
+              "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName'))), '2022-07-01').subnets[0].id]",
+              "action": "Allow"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName')))]"
+      ]
     },
     {
       "type": "Microsoft.Storage/storageAccounts/fileServices",
@@ -96,12 +138,16 @@
     {
       "type": "Microsoft.App/managedEnvironments",
       "apiVersion": "2022-06-01-preview",
-      "name": "[format('managedEnv-{0}-vaultwarden', parameters('baseName'))]",
+      "name": "[format('managedenv-{0}-vaultwarden', parameters('baseName'))]",
       "location": "[parameters('location')]",
       "sku": {
         "name": "Consumption"
       },
       "properties": {
+        "vnetConfiguration": {
+          "internal": false,
+          "infrastructureSubnetId": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName'))), '2022-07-01').subnets[0].id]"
+        },
         "appLogsConfiguration": {
           "destination": "log-analytics",
           "logAnalyticsConfiguration": {
@@ -111,13 +157,14 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.OperationalInsights/workspaces', format('law{0}', parameters('baseName')))]"
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('law{0}', parameters('baseName')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName')))]"
       ]
     },
     {
       "type": "Microsoft.App/managedEnvironments/storages",
       "apiVersion": "2022-06-01-preview",
-      "name": "[format('{0}/{1}', format('managedEnv-{0}-vaultwarden', parameters('baseName')), 'vaultwarden')]",
+      "name": "[format('{0}/{1}', format('managedenv-{0}-vaultwarden', parameters('baseName')), 'vaultwarden')]",
       "properties": {
         "azureFile": {
           "accessMode": "ReadWrite",
@@ -128,7 +175,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', format('stgvaultwarden{0}', parameters('baseName')), 'default', 'vaultwarden')]",
-        "[resourceId('Microsoft.App/managedEnvironments', format('managedEnv-{0}-vaultwarden', parameters('baseName')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('managedenv-{0}-vaultwarden', parameters('baseName')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName')))]"
       ]
     },
@@ -138,7 +185,7 @@
       "name": "[format('vaultwarden{0}', parameters('baseName'))]",
       "location": "[parameters('location')]",
       "properties": {
-        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', format('managedEnv-{0}-vaultwarden', parameters('baseName')))]",
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', format('managedenv-{0}-vaultwarden', parameters('baseName')))]",
         "configuration": {
           "secrets": [
             {
@@ -246,7 +293,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', format('stgvaultwarden{0}', parameters('baseName')), 'default', 'vaultwarden')]",
-        "[resourceId('Microsoft.App/managedEnvironments', format('managedEnv-{0}-vaultwarden', parameters('baseName')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('managedenv-{0}-vaultwarden', parameters('baseName')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName')))]"
       ]
     }

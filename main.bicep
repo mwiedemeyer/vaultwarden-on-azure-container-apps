@@ -4,13 +4,41 @@ param location string = 'germanywestcentral'
 @description('Base name for all resources')
 param baseName string
 
-@description('The secret to access the /admin page of the Vaultwarden installation')
+@description('The password to access the /admin page of the Vaultwarden installation')
 @secure()
 param adminToken string
 
-@description('If you are using sendgrid as a mail provider, set this to your API Key')
+@description('If you are using sendgrid as a mail provider, set this to your API Key. If you are using another mail provider you have to customize the template.')
 @secure()
 param sendgridSmtpPassword string
+
+resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = {
+  name: 'vnet${baseName}'
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: [
+      {
+        name: 'containerapps'
+        properties: {
+          addressPrefix: ''
+          serviceEndpoints: [
+            {
+              service: 'Microsoft.Storage'
+              locations: [
+                location
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
 
 resource logworkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: 'law${baseName}'
@@ -44,6 +72,16 @@ resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
     allowSharedKeyAccess: true
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
+    networkAcls: {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      virtualNetworkRules: [
+        {
+          id: vnet.properties.subnets[0].id
+          action: 'Allow'
+        }
+      ]
+    }
   }
 }
 
@@ -62,12 +100,16 @@ resource fileshare 'Microsoft.Storage/storageAccounts/fileServices/shares@2022-0
 }
 
 resource managedEnv 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
-  name: 'managedEnv-${baseName}-vaultwarden'
+  name: 'managedenv-${baseName}-vaultwarden'
   location: location
   sku: {
     name: 'Consumption'
   }
   properties: {
+    vnetConfiguration: {
+      internal: false
+      infrastructureSubnetId: vnet.properties.subnets[0].id
+    }
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
@@ -83,7 +125,7 @@ resource managedEnvStorage 'Microsoft.App/managedEnvironments/storages@2022-06-0
   parent: managedEnv
   properties: {
     azureFile: {
-      accessMode: 'ReadWrite'
+      accessMode: 'ReadWrite'      
       shareName: fileshare.name
       accountName: storage.name
       accountKey: listKeys(storage.id, storage.apiVersion).keys[0].value
@@ -124,10 +166,10 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
           }
         ]
       }
-    }    
+    }
     template: {
       containers: [
-        {          
+        {
           image: 'docker.io/vaultwarden/server:latest'
           name: 'vaultwarden'
           resources: {
@@ -143,33 +185,33 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
             {
               name: 'SIGNUPS_ALLOWED'
               value: 'false'
-            }                      
+            }
             {
               name: 'ADMIN_TOKEN'
               secretRef: 'admintoken'
-            }            
+            }
             {
-              name:'SMTP_HOST'
+              name: 'SMTP_HOST'
               value: 'smtp.sendgrid.net'
             }
             {
-              name:'SMTP_PORT'
+              name: 'SMTP_PORT'
               value: '465'
             }
             {
-              name:'SMTP_SECURITY'
+              name: 'SMTP_SECURITY'
               value: 'force_tls'
             }
             {
-              name:'SMTP_USERNAME'
+              name: 'SMTP_USERNAME'
               value: 'apikey'
             }
             {
-              name:'SMTP_PASSWORD'
+              name: 'SMTP_PASSWORD'
               secretRef: 'sendgridSmtpPassword'
             }
             {
-              name:'SMTP_AUTH_MECHANISM'
+              name: 'SMTP_AUTH_MECHANISM'
               value: 'Login'
             }
             {
@@ -177,7 +219,7 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
               value: 'true'
             }
             {
-              name:'SHOW_PASSWORD_HINT'
+              name: 'SHOW_PASSWORD_HINT'
               value: 'false'
             }
           ]
