@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "9233386300371373978"
+      "templateHash": "11245408071690577512"
     }
   },
   "parameters": {
@@ -49,9 +49,9 @@
         },
         "subnets": [
           {
-            "name": "containerapps",
+            "name": "default",
             "properties": {
-              "addressPrefix": "",
+              "addressPrefix": "10.0.0.0/23",
               "serviceEndpoints": [
                 {
                   "service": "Microsoft.Storage",
@@ -105,7 +105,7 @@
           "bypass": "AzureServices",
           "virtualNetworkRules": [
             {
-              "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName'))), '2022-07-01').subnets[0].id]",
+              "id": "[format('{0}/subnets/default', resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName'))))]",
               "action": "Allow"
             }
           ]
@@ -197,7 +197,7 @@
               "value": "[parameters('adminToken')]"
             },
             {
-              "name": "sendgridSmtpPassword",
+              "name": "sendgridsmtppassword",
               "value": "[parameters('sendgridSmtpPassword')]"
             }
           ],
@@ -255,7 +255,7 @@
                 },
                 {
                   "name": "SMTP_PASSWORD",
-                  "secretRef": "sendgridSmtpPassword"
+                  "secretRef": "sendgridsmtppassword"
                 },
                 {
                   "name": "SMTP_AUTH_MECHANISM",
@@ -294,6 +294,7 @@
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', format('stgvaultwarden{0}', parameters('baseName')), 'default', 'vaultwarden')]",
         "[resourceId('Microsoft.App/managedEnvironments', format('managedenv-{0}-vaultwarden', parameters('baseName')))]",
+        "[resourceId('Microsoft.App/managedEnvironments/storages', format('managedenv-{0}-vaultwarden', parameters('baseName')), 'vaultwarden')]",
         "[resourceId('Microsoft.Storage/storageAccounts', format('stgvaultwarden{0}', parameters('baseName')))]"
       ]
     }

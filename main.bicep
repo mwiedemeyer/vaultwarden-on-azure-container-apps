@@ -23,9 +23,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = {
     }
     subnets: [
       {
-        name: 'containerapps'
+        name: 'default'
         properties: {
-          addressPrefix: ''
+          addressPrefix: '10.0.0.0/23'
           serviceEndpoints: [
             {
               service: 'Microsoft.Storage'
@@ -77,7 +77,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
       bypass: 'AzureServices'
       virtualNetworkRules: [
         {
-          id: vnet.properties.subnets[0].id
+          id: '${vnet.id}/subnets/default'
           action: 'Allow'
         }
       ]
@@ -125,7 +125,7 @@ resource managedEnvStorage 'Microsoft.App/managedEnvironments/storages@2022-06-0
   parent: managedEnv
   properties: {
     azureFile: {
-      accessMode: 'ReadWrite'      
+      accessMode: 'ReadWrite'
       shareName: fileshare.name
       accountName: storage.name
       accountKey: listKeys(storage.id, storage.apiVersion).keys[0].value
@@ -149,7 +149,7 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
           value: adminToken
         }
         {
-          name: 'sendgridSmtpPassword'
+          name: 'sendgridsmtppassword'
           value: sendgridSmtpPassword
         }
       ]
@@ -208,7 +208,7 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
             }
             {
               name: 'SMTP_PASSWORD'
-              secretRef: 'sendgridSmtpPassword'
+              secretRef: 'sendgridsmtppassword'
             }
             {
               name: 'SMTP_AUTH_MECHANISM'
@@ -234,7 +234,7 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
       volumes: [
         {
           name: fileshare.name
-          storageName: fileshare.name
+          storageName: managedEnvStorage.name
           storageType: 'AzureFile'
         }
       ]
