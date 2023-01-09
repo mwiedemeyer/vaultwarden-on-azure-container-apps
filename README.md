@@ -1,8 +1,8 @@
 # Vaultwarden on Azure Container Apps
 
-This repo contains the bicep files to deploy Vaultwarden on an Azure Container App.
+This repo contains the bicep files to deploy [Vaultwarden](https://github.com/dani-garcia/vaultwarden) on an Azure Container App. It also contains an empty SQLite database required to setup Vaultwarden using an Azure file share.
 
-For more details visit my blog post with all the details: [https://blog.mwiedemeyer.de/post/2023/Vaultwarden-Bitwarden-on-Azure-Container-Apps/](https://blog.mwiedemeyer.de/post/2023/Vaultwarden-Bitwarden-on-Azure-Container-Apps/)
+For more details visit my blog post: [https://blog.mwiedemeyer.de/post/2023/Vaultwarden-Bitwarden-on-Azure-Container-Apps/](https://blog.mwiedemeyer.de/post/2023/Vaultwarden-Bitwarden-on-Azure-Container-Apps/)
 
 To run this template you can execute:
 
