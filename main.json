@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "13988757489364819005"
+      "templateHash": "5892947925726988834"
     }
   },
   "parameters": {
@@ -34,7 +34,7 @@
         "description": "If you are using sendgrid as a mail provider, set this to your API Key. If you are using another mail provider you have to customize the template."
       }
     },
-    "enableVnetIntegration": {
+    "enableVnetIntegrationWithAdditionalCosts": {
       "type": "bool",
       "defaultValue": true,
       "metadata": {
@@ -44,7 +44,7 @@
   },
   "resources": [
     {
-      "condition": "[parameters('enableVnetIntegration')]",
+      "condition": "[parameters('enableVnetIntegrationWithAdditionalCosts')]",
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2022-07-01",
       "name": "[format('vnet{0}', parameters('baseName'))]",
@@ -109,9 +109,9 @@
         "supportsHttpsTrafficOnly": true,
         "accessTier": "Hot",
         "networkAcls": {
-          "defaultAction": "[if(parameters('enableVnetIntegration'), 'Deny', 'Allow')]",
+          "defaultAction": "[if(parameters('enableVnetIntegrationWithAdditionalCosts'), 'Deny', 'Allow')]",
           "bypass": "AzureServices",
-          "virtualNetworkRules": "[if(parameters('enableVnetIntegration'), createArray(createObject('id', format('{0}/subnets/default', resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName')))), 'action', 'Allow')), null())]"
+          "virtualNetworkRules": "[if(parameters('enableVnetIntegrationWithAdditionalCosts'), createArray(createObject('id', format('{0}/subnets/default', resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName')))), 'action', 'Allow')), null())]"
         }
       },
       "dependsOn": [
@@ -149,7 +149,7 @@
       "properties": {
         "vnetConfiguration": {
           "internal": false,
-          "infrastructureSubnetId": "[if(parameters('enableVnetIntegration'), reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName'))), '2022-07-01').subnets[0].id, null())]"
+          "infrastructureSubnetId": "[if(parameters('enableVnetIntegrationWithAdditionalCosts'), reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet{0}', parameters('baseName'))), '2022-07-01').subnets[0].id, null())]"
         },
         "appLogsConfiguration": {
           "destination": "log-analytics",
