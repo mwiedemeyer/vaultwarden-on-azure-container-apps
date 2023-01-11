@@ -12,7 +12,10 @@ param adminToken string
 @secure()
 param sendgridSmtpPassword string
 
-resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = {
+@description('Enable VNet integration. NOTE: This will create additional components which produces additional costs.')
+param enableVnetIntegration bool = true
+
+resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = if (enableVnetIntegration) {
   name: 'vnet${baseName}'
   location: location
   properties: {
@@ -73,14 +76,14 @@ resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
     networkAcls: {
-      defaultAction: 'Deny'
+      defaultAction: enableVnetIntegration ? 'Deny' : 'Allow'
       bypass: 'AzureServices'
-      virtualNetworkRules: [
+      virtualNetworkRules: enableVnetIntegration ? [
         {
           id: '${vnet.id}/subnets/default'
           action: 'Allow'
         }
-      ]
+      ] : null
     }
   }
 }
@@ -108,7 +111,7 @@ resource managedEnv 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
   properties: {
     vnetConfiguration: {
       internal: false
-      infrastructureSubnetId: vnet.properties.subnets[0].id
+      infrastructureSubnetId: enableVnetIntegration ? vnet.properties.subnets[0].id : null
     }
     appLogsConfiguration: {
       destination: 'log-analytics'
