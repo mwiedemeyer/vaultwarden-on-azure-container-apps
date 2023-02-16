@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.13.1.58284",
-      "templateHash": "5892947925726988834"
+      "version": "0.14.46.61228",
+      "templateHash": "13858489567532917051"
     }
   },
   "parameters": {
@@ -23,13 +23,13 @@
       }
     },
     "adminToken": {
-      "type": "secureString",
+      "type": "securestring",
       "metadata": {
         "description": "The password to access the /admin page of the Vaultwarden installation"
       }
     },
     "sendgridSmtpPassword": {
-      "type": "secureString",
+      "type": "securestring",
       "metadata": {
         "description": "If you are using sendgrid as a mail provider, set this to your API Key. If you are using another mail provider you have to customize the template."
       }
@@ -243,6 +243,10 @@
                 {
                   "name": "SMTP_HOST",
                   "value": "smtp.sendgrid.net"
+                },
+                {
+                  "name": "SMTP_FROM",
+                  "value": "noreply@yourdomain.com"
                 },
                 {
                   "name": "SMTP_PORT",

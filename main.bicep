@@ -198,6 +198,10 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
               value: 'smtp.sendgrid.net'
             }
             {
+              name: 'SMTP_FROM'
+              value: 'noreply@yourdomain.com'
+            }
+            {
               name: 'SMTP_PORT'
               value: '465'
             }
