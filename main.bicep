@@ -15,7 +15,7 @@ param sendgridSmtpPassword string
 @description('Enable VNet integration. NOTE: This will create additional components which produces additional costs.')
 param enableVnetIntegrationWithAdditionalCosts bool = true
 
-resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = if (enableVnetIntegrationWithAdditionalCosts) {
+resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = if (enableVnetIntegrationWithAdditionalCosts) {
   name: 'vnet${baseName}'
   location: location
   properties: {
@@ -44,6 +44,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = if (enableVnetInt
 }
 
 resource logworkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  #disable-next-line BCP334
   name: 'law${baseName}'
   location: location
   properties: {
@@ -62,7 +63,7 @@ resource logworkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   }
 }
 
-resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: 'stgvaultwarden${baseName}'
   location: location
   kind: 'StorageV2'
@@ -88,12 +89,12 @@ resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
   }
 }
 
-resource fileservices 'Microsoft.Storage/storageAccounts/fileServices@2022-09-01' = {
+resource fileservices 'Microsoft.Storage/storageAccounts/fileServices@2023-01-01' = {
   name: 'default'
   parent: storage
 }
 
-resource fileshare 'Microsoft.Storage/storageAccounts/fileServices/shares@2022-09-01' = {
+resource fileshare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-01-01' = {
   name: 'vaultwarden'
   parent: fileservices
   properties: {
@@ -102,12 +103,9 @@ resource fileshare 'Microsoft.Storage/storageAccounts/fileServices/shares@2022-0
   }
 }
 
-resource managedEnv 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
+resource managedEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: 'managedenv-${baseName}-vaultwarden'
   location: location
-  sku: {
-    name: 'Consumption'
-  }
   properties: {
     vnetConfiguration: {
       internal: false
@@ -123,7 +121,7 @@ resource managedEnv 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
   }
 }
 
-resource managedEnvStorage 'Microsoft.App/managedEnvironments/storages@2022-06-01-preview' = {
+resource managedEnvStorage 'Microsoft.App/managedEnvironments/storages@2023-05-01' = {
   name: fileshare.name
   parent: managedEnv
   properties: {
@@ -131,12 +129,12 @@ resource managedEnvStorage 'Microsoft.App/managedEnvironments/storages@2022-06-0
       accessMode: 'ReadWrite'
       shareName: fileshare.name
       accountName: storage.name
-      accountKey: listKeys(storage.id, storage.apiVersion).keys[0].value
+      accountKey: storage.listKeys().keys[0].value
     }
   }
 }
 
-resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
+resource vaultwardenapp 'Microsoft.App/containerApps@2023-05-01' = {
   name: 'vaultwarden${baseName}'
   location: location
   properties: {
@@ -145,7 +143,7 @@ resource vaultwardenapp 'Microsoft.App/containerApps@2022-06-01-preview' = {
       secrets: [
         {
           name: 'fileshare-connectionstring'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storage.id, storage.apiVersion).keys[0].value}'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storage.listKeys().keys[0].value}'
         }
         {
           name: 'admintoken'
